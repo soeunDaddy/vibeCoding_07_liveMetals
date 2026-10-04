@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MetalPrice Tracker - 글로벌 금속 실시간 시세 및 추이 분석</title>
+  <meta name="description" content="금(Gold), 은(Silver), 구리(Copper), 플래티넘(Platinum) 등 주요 금속의 실시간 시세 및 기간별 변동 추이 차트 조회 플랫폼">
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Pretendard:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="dark-theme">
+  <!-- 배경 글로우 이펙트 -->
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+  <div class="ambient-glow glow-3"></div>
+
+  <div class="app-container">
+    <!-- 헤더 영역 -->
+    <header class="main-header">
+      <div class="header-left">
+        <div class="logo-wrapper">
+          <div class="logo-icon-box">
+            <i data-lucide="gem" class="logo-icon"></i>
+          </div>
+          <div class="logo-text">
+            <h1>MetalPrice <span class="gradient-text">Pulse</span></h1>
+            <span class="badge-live">
+              <span class="live-pulse"></span>
+              <span id="liveStatusText">LIVE MARKET</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 상단 글로벌 컨트롤러 (통화, 단위, API 키, 새로고침) -->
+      <div class="header-right">
+        <!-- 통화 선택기 (원화, 달러, 엔화, 위안화 - 기본값: 원화) -->
+        <div class="control-group">
+          <label for="currencySelect" class="control-label">통화 기준</label>
+          <div class="select-wrapper">
+            <select id="currencySelect">
+              <option value="KRW" selected>원화 (₩ · KRW)</option>
+              <option value="USD">달러 ($ · USD)</option>
+              <option value="JPY">엔화 (¥ · JPY)</option>
+              <option value="CNY">위안화 (¥ · CNY)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 단위 선택기 (그램, 온스, 돈 - 기본값: 그램) -->
+        <div class="control-group">
+          <label for="unitSelect" class="control-label">중량 단위</label>
+          <div class="select-wrapper">
+            <select id="unitSelect">
+              <option value="g" selected>그램 (g)</option>
+              <option value="toz">온스 (Troy oz · 31.1g)</option>
+              <option value="don">돈 (1돈 · 3.75g)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 실시간 자동 갱신 토글 & 새로고침 버튼 -->
+        <div class="btn-group">
+          <button id="refreshBtn" class="btn btn-secondary" title="시세 및 환율 즉시 새로고침">
+            <i data-lucide="rotate-cw" id="refreshIcon"></i>
+            <span class="btn-text">새로고침</span>
+          </button>
+          <button id="openApiSettingsBtn" class="btn btn-primary" title="MetalPriceAPI 설정">
+            <i data-lucide="key"></i>
+            <span>API 설정</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- 시장 인사이트 배너 (실시간 환율 & 시황) -->
+    <section class="market-insight-bar">
+      <!-- 실시간 환율 (Open Exchange Rates API 연동) -->
+      <div class="insight-item fx-rate-item">
+        <span class="insight-label">실시간 환율:</span>
+        <span class="insight-value highlight-fx" id="liveFxRate">1 USD = ₩1,348.60</span>
+        <span class="insight-tag tag-live-fx">
+          <span class="fx-pulse-dot"></span> LIVE FX
+        </span>
+      </div>
+      <div class="insight-divider"></div>
+      <div class="insight-item">
+        <span class="insight-label">금/은 비율 (Gold-Silver Ratio):</span>
+        <span class="insight-value" id="goldSilverRatio">82.45</span>
+        <span class="insight-tag">안전자산 선호</span>
+      </div>
+      <div class="insight-divider"></div>
+      <div class="insight-item">
+        <span class="insight-label">마지막 업데이트:</span>
+        <span class="insight-value" id="lastUpdatedTime">--:--:--</span>
+      </div>
+      <div class="insight-divider"></div>
+      <div class="insight-item api-indicator">
+        <span class="insight-label">데이터 소스:</span>
+        <span class="status-badge" id="dataSourceBadge">
+          <i data-lucide="zap" class="icon-sm"></i> MetalpriceAPI + Live FX
+        </span>
+      </div>
+    </section>
+
+    <!-- [요구사항 1] 상단 레이아웃: 금속별 현재 가격 카드뷰 영역 -->
+    <section class="section-container">
+      <div class="section-header">
+        <div class="section-title-wrap">
+          <div class="section-tag">REALTIME SPOT PRICES</div>
+          <h2>주요 금속 실시간 시세 (카드뷰)</h2>
+        </div>
+        <div class="card-view-info">
+          <span class="pulse-dot"></span> 3초마다 시장 호가 실시간 반영
+        </div>
+      </div>
+
+      <!-- 금속 시세 카드 그리드 -->
+      <div class="metal-cards-grid" id="metalCardsGrid">
+        <!-- JS로 동적 생성 및 실시간 갱신 (금, 은, 구리, 플래티넘, 팔라듐, 알루미늄, 니켈, 아연) -->
+      </div>
+    </section>
+
+    <!-- [요구사항 3] 기간 선택 컨트롤러 영역 -->
+    <section class="section-container timeframe-section">
+      <div class="timeframe-bar-wrapper">
+        <div class="timeframe-left">
+          <span class="filter-title"><i data-lucide="calendar-range" class="icon-sm"></i> 분석 기간 선택:</span>
+          <div class="timeframe-buttons" id="timeframeButtons">
+            <button class="tf-btn" data-period="7D">1주일 (7D)</button>
+            <button class="tf-btn active" data-period="1M">1개월 (1M)</button>
+            <button class="tf-btn" data-period="3M">3개월 (3M)</button>
+            <button class="tf-btn" data-period="6M">6개월 (6M)</button>
+            <button class="tf-btn" data-period="1Y">1년 (1Y)</button>
+            <button class="tf-btn" data-period="YTD">연초대비 (YTD)</button>
+            <button class="tf-btn" data-period="5Y">5년 (5Y)</button>
+          </div>
+        </div>
+
+        <div class="timeframe-right">
+          <!-- 차트 일괄 조작 및 필터링 -->
+          <div class="quick-metal-filter">
+            <span class="filter-label">표시 금속:</span>
+            <div class="metal-toggles" id="metalToggles">
+              <!-- 체크박스 필터 동적 생성 -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- [요구사항 3] 하단 레이아웃: 금속별 시세 변동 그래프 (세로로 1개씩 순차 배치) -->
+    <section class="section-container charts-section">
+      <div class="section-header">
+        <div class="section-title-wrap">
+          <div class="section-tag">HISTORICAL ANALYSIS</div>
+          <h2>금속별 시세 변동 추이 차트 (개별 세로형)</h2>
+        </div>
+        <div class="chart-legend-guide">
+          <span class="legend-chip"><span class="dot gold-dot"></span> 금(Gold)</span>
+          <span class="legend-chip"><span class="dot silver-dot"></span> 은(Silver)</span>
+          <span class="legend-chip"><span class="dot copper-dot"></span> 구리(Copper)</span>
+          <span class="legend-chip"><span class="dot plat-dot"></span> 플래티넘(Platinum)</span>
+        </div>
+      </div>
+
+      <!-- 세로로 1개씩 배치되는 개별 차트 스택 -->
+      <div class="charts-vertical-stack" id="chartsVerticalStack">
+        <!-- JS로 각 금속의 세로 차트 컨테이너가 1개씩 순서대로 렌더링됩니다 -->
+      </div>
+    </section>
+
+    <!-- 푸터 -->
+    <footer class="main-footer">
+      <div class="footer-content">
+        <div class="footer-brand">
+          <h3>MetalPrice <span class="gradient-text">Pulse</span></h3>
+          <p>글로벌 실물 원자재 및 귀금속 시장 전문 데이터 모니터링 플랫폼</p>
+        </div>
+        <div class="footer-info">
+          <p>Powered by <strong>MetalpriceAPI</strong> & Chart.js Engine</p>
+          <p class="copyright">© 2026 MetalPrice Pulse. 모든 시세는 시장 지표이며 투자 권유가 아닙니다.</p>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- API 키 설정 및 환경 모달 -->
+  <div class="modal-backdrop" id="apiModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i data-lucide="key" class="icon-accent"></i>
+          <h3>MetalpriceAPI 설정 및 연결</h3>
+        </div>
+        <button class="modal-close-btn" id="closeApiModalBtn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-description">
+          <a href="https://metalpriceapi.com" target="_blank" rel="noopener noreferrer" class="link-highlight">MetalpriceAPI</a>에서 발급받은 OpenAPI 키를 입력하면 실제 실시간 데이터로 조회할 수 있습니다. (미입력 시 고정밀 시뮬레이터 및 캐시 데이터로 자동 동작합니다.)
+        </p>
+
+        <div class="form-group">
+          <label for="apiKeyInput">MetalpriceAPI Key</label>
+          <div class="input-with-icon">
+            <input type="password" id="apiKeyInput" placeholder="예: a1b2c3d4e5f6..." autocomplete="off">
+            <button type="button" class="btn-input-icon" id="toggleApiKeyVisibility" title="키 보기/숨기기">
+              <i data-lucide="eye" id="eyeIcon"></i>
+            </button>
+          </div>
+          <small class="form-hint">API 키는 사용자 브라우저의 LocalStorage에만 안전하게 보관됩니다.</small>
+        </div>
+
+        <div class="form-group">
+          <label>동작 모드</label>
+          <div class="mode-selector">
+            <label class="radio-label">
+              <input type="radio" name="apiMode" value="auto" checked>
+              <div class="radio-content">
+                <span class="mode-title">스마트 하이브리드 (권장)</span>
+                <span class="mode-desc">API 키 유효 시 실제 호출, 한도 초과 시 실시간 시뮬레이션 폴백</span>
+              </div>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="apiMode" value="mock">
+              <div class="radio-content">
+                <span class="mode-title">시뮬레이션 모드 (Demo)</span>
+                <span class="mode-desc">API 쿼터 소모 없이 2024-2026 정밀 추세 및 실시간 틱 재현</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="api-status-box" id="apiTestResultBox">
+          <i data-lucide="info" class="icon-sm"></i>
+          <span id="apiStatusMessage">API 키를 입력하고 저장을 누르세요.</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="testApiBtn" class="btn btn-secondary">
+          <i data-lucide="activity"></i> 연결 테스트
+        </button>
+        <button id="saveApiBtn" class="btn btn-primary">
+          <i data-lucide="save"></i> 설정 저장 및 적용
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 토스트 알림 컨테이너 -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
